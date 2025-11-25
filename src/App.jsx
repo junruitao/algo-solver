@@ -10,83 +10,113 @@ import {
   Server,
   Loader2,
   Play,
-  Globe
+  Globe,
+  Languages
 } from 'lucide-react';
 
 const App = () => {
   const [slug, setSlug] = useState('');
   const [platform, setPlatform] = useState('leetcode');
+  const [language, setLanguage] = useState('python'); // State for selected language, now controlled by Config panel
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [config, setConfig] = useState({
-    apiUrl: 'https://your-cloud-run-url.run.app/solve', // Placeholder
+    apiUrl: 'https://algo-solver-485537320160.australia-southeast1.run.app/api/solve', 
     method: 'POST', // common for passing payloads
-    useMock: true   // Default to mock so user sees UI works immediately
+    useMock: false   // --- CHANGED: Default to false ---
   });
   const [showConfig, setShowConfig] = useState(false);
 
+  // Helper function to get the correct file extension
+  const getFileExtension = (lang) => {
+    switch (lang) {
+      case 'python':
+        return 'py';
+      case 'java':
+        return 'java';
+      case 'cpp':
+        return 'cpp';
+      case 'javascript':
+        return 'js';
+      default:
+        return 'txt';
+    }
+  };
+
+
   // Mock response generator for demonstration
-  const getMockResponse = (slug, platform) => {
+  const getMockResponse = (slug, platform, lang) => {
     return new Promise((resolve) => {
       setTimeout(() => {
         let mockCode = '';
-        let mockLang = 'python';
         let mockComplexity = 'O(n)';
 
-        if (platform === 'codeforces') {
-          mockLang = 'cpp';
-          mockCode = `#include <bits/stdc++.h>
+        // Generate specific syntax based on requested language
+        if (lang === 'cpp') {
+            mockCode = `// Solution for ${slug} on ${platform}
+#include <vector>
+#include <unordered_map>
 using namespace std;
 
-// Mock solution for Codeforces problem: ${slug}
-void solve() {
-    int n;
-    cin >> n;
-    vector<int> a(n);
-    for(int i=0; i<n; i++) cin >> a[i];
-    
-    sort(a.begin(), a.end());
-    cout << a[n-1] - a[0] << endl;
-}
-
-int main() {
-    ios::sync_with_stdio(0);
-    cin.tie(0);
-    int t;
-    cin >> t;
-    while(t--) {
-        solve();
-    }
-    return 0;
-}`;
-          mockComplexity = "O(N log N) time";
-        } else if (platform === 'hackerrank') {
-          mockLang = 'java';
-          mockCode = `import java.io.*;
-import java.util.*;
-
-// Mock solution for HackerRank: ${slug}
-public class Solution {
-
-    public static void main(String[] args) {
-        Scanner scan = new Scanner(System.in);
-        int n = scan.nextInt();
-        
-        // Standard HackerRank boilerplate
-        int sum = 0;
-        for(int i=0; i<n; i++) {
-             sum += scan.nextInt();
+class Solution {
+public:
+    vector<int> twoSum(vector<int>& nums, int target) {
+        // Mock C++ Implementation
+        unordered_map<int, int> map;
+        for (int i = 0; i < nums.size(); i++) {
+            int complement = target - nums[i];
+            if (map.count(complement)) {
+                return {map[complement], i};
+            }
+            map[nums[i]] = i;
         }
-        System.out.println(sum);
+        return {};
+    }
+};`;
+        } else if (lang === 'java') {
+            mockCode = `// Solution for ${slug} on ${platform}
+import java.util.HashMap;
+import java.util.Map;
+
+class Solution {
+    public int[] twoSum(int[] nums, int target) {
+        // Mock Java Implementation
+        Map<Integer, Integer> map = new HashMap<>();
+        for (int i = 0; i < nums.length; i++) {
+            int complement = target - nums[i];
+            if (map.containsKey(complement)) {
+                return new int[] { map.get(complement), i };
+            }
+            map.put(nums[i], i);
+        }
+        throw new IllegalArgumentException("No two sum solution");
     }
 }`;
-          mockComplexity = "O(N) time";
+        } else if (lang === 'javascript') {
+            mockCode = `/**
+ * Solution for ${slug} on ${platform}
+ * @param {number[]} nums
+ * @param {number} target
+ * @return {number[]}
+ */
+var twoSum = function(nums, target) {
+    // Mock JavaScript Implementation
+    const map = new Map();
+    for (let i = 0; i < nums.length; i++) {
+        const complement = target - nums[i];
+        if (map.has(complement)) {
+            return [map.get(complement), i];
+        }
+        map.set(nums[i], i);
+    }
+    return [];
+};`;
         } else {
-          // Default LeetCode
-          mockCode = `class Solution:
+            // Default Python
+            mockCode = `class Solution:
     def twoSum(self, nums: List[int], target: int) -> List[int]:
-        # Mock solution for LeetCode: ${slug}
+        # Mock Python Implementation
         prevMap = {}  # val : index
         
         for i, n in enumerate(nums):
@@ -95,23 +125,28 @@ public class Solution {
                 return [prevMap[diff], i]
             prevMap[n] = i
         return []`;
-          mockComplexity = "O(n) time | O(n) space";
         }
 
         resolve({
           slug: slug,
           platform: platform,
-          language: mockLang,
+          language: lang,
           code: mockCode,
-          complexity: mockComplexity
+          complexity: "O(n) time | O(n) space"
         });
-      }, 1500);
+      }, 1200);
     });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!slug.trim()) return;
+
+    // Show a warning if not using mock data and URL is default placeholder
+    if (!config.useMock && config.apiUrl.includes('your-cloud-run-url')) {
+        setError("Please update the 'Cloud Run Endpoint URL' in the configuration panel (gear icon) before attempting a real API call.");
+        return;
+    }
 
     setLoading(true);
     setError(null);
@@ -121,7 +156,7 @@ public class Solution {
       let data;
 
       if (config.useMock) {
-        data = await getMockResponse(slug, platform);
+        data = await getMockResponse(slug, platform, language);
       } else {
         // Real API Call logic
         const options = {
@@ -134,16 +169,28 @@ public class Solution {
         // Adjust body/url based on method preference
         let url = config.apiUrl;
         if (config.method === 'POST') {
-          options.body = JSON.stringify({ slug: slug, platform: platform });
+          options.body = JSON.stringify({ 
+            slug: slug, 
+            platform: platform, 
+            language: language 
+          });
         } else {
-          // Assume GET /endpoint?slug=value&platform=value
-          url = `${config.apiUrl}?slug=${encodeURIComponent(slug)}&platform=${encodeURIComponent(platform)}`;
+          // Assume GET /endpoint?slug=...&platform=...&lang=...
+          url = `${config.apiUrl}?slug=${encodeURIComponent(slug)}&platform=${encodeURIComponent(platform)}&language=${encodeURIComponent(language)}`;
         }
 
         const response = await fetch(url, options);
         
         if (!response.ok) {
-          throw new Error(`API Error: ${response.statusText}`);
+          // Attempt to read error message from body if available
+          let errorText = await response.text();
+          try {
+            const errorJson = JSON.parse(errorText);
+            errorText = errorJson.message || errorText;
+          } catch {
+            // Ignore if not JSON
+          }
+          throw new Error(`API returned status ${response.status}. Possible CORS issue or check server logs. Response: ${errorText.substring(0, 100)}...`);
         }
         
         data = await response.json();
@@ -151,7 +198,7 @@ public class Solution {
 
       setResult(data);
     } catch (err) {
-      setError(err.message || "Failed to fetch solution. Check CORS settings on your Cloud Run instance.");
+      setError(err.message || "Failed to fetch solution. Check server logs and Cloud Run CORS configuration.");
     } finally {
       setLoading(false);
     }
@@ -182,8 +229,10 @@ public class Solution {
         <div className="bg-slate-900 border-b border-slate-800 animate-in slide-in-from-top-2">
           <div className="max-w-5xl mx-auto px-4 py-6">
             <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">API Configuration</h3>
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-2">
+            <div className="grid gap-6 md:grid-cols-4">
+              
+              {/* API URL */}
+              <div className="space-y-2 md:col-span-2">
                 <label className="text-xs text-slate-500">Cloud Run Endpoint URL</label>
                 <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-md px-3 py-2 focus-within:border-emerald-500/50 transition-colors">
                   <Server className="w-4 h-4 text-slate-600" />
@@ -197,32 +246,48 @@ public class Solution {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs text-slate-500">HTTP Method</label>
-                  <select 
-                    value={config.method}
-                    onChange={(e) => setConfig({...config, method: e.target.value})}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-500/50"
-                  >
-                    <option value="GET">GET (Query Param)</option>
-                    <option value="POST">POST (JSON Body)</option>
-                  </select>
-                </div>
-                
-                <div className="flex items-center justify-between bg-slate-900/50 border border-slate-800 rounded-md px-4 mt-6">
-                  <span className="text-sm text-slate-400">Demo Mode</span>
-                  <button 
-                    onClick={() => setConfig({...config, useMock: !config.useMock})}
-                    className={`w-10 h-5 rounded-full relative transition-colors ${config.useMock ? 'bg-emerald-500' : 'bg-slate-700'}`}
-                  >
-                    <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${config.useMock ? 'left-6' : 'left-1'}`} />
-                  </button>
-                </div>
+              {/* HTTP Method */}
+              <div className="space-y-2">
+                <label className="text-xs text-slate-500">HTTP Method</label>
+                <select 
+                  value={config.method}
+                  onChange={(e) => setConfig({...config, method: e.target.value})}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-500/50"
+                >
+                  <option value="GET">GET (Query Param)</option>
+                  <option value="POST">POST (JSON Body)</option>
+                </select>
+              </div>
+
+              {/* SOLUTION LANGUAGE (NEW) */}
+              <div className="space-y-2">
+                <label className="text-xs text-slate-500">Solution Language</label>
+                <select 
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-500/50"
+                >
+                  <option value="python">Python</option>
+                  <option value="java">Java</option>
+                  <option value="cpp">C++</option>
+                  <option value="javascript">JavaScript</option>
+                </select>
               </div>
             </div>
+            
+            {/* Demo Mode Toggle */}
+            <div className="flex items-center justify-between bg-slate-900/50 border border-slate-800 rounded-md px-4 py-3 mt-6">
+                <span className="text-sm text-slate-400">Enable Demo Mode (Uses local mock data instead of API call)</span>
+                <button 
+                  onClick={() => setConfig({...config, useMock: !config.useMock})}
+                  className={`w-10 h-5 rounded-full relative transition-colors flex-shrink-0 ${config.useMock ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                >
+                  <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${config.useMock ? 'left-6' : 'left-1'}`} />
+                </button>
+            </div>
+            
             <p className="text-xs text-slate-500 mt-4">
-              * Ensure your Cloud Run service allows CORS requests from this origin if running in browser.
+              * Payload sent: <code className="text-emerald-400">{"{ slug, platform, language }"}</code>
             </p>
           </div>
         </div>
@@ -236,29 +301,40 @@ public class Solution {
             Get solutions instantly.
           </h2>
           <p className="text-slate-400 max-w-md mx-auto">
-            Enter the problem ID or slug from your favorite platform to fetch the optimal solution.
+            Choose your platform and problem ID. Solution language is set in the 
+            <span className="text-emerald-400 font-semibold cursor-pointer" onClick={() => setShowConfig(true)}> configuration panel</span>.
           </p>
+          {!config.useMock && config.apiUrl.includes('your-cloud-run-url') && (
+            <div className="text-sm text-red-400 bg-red-900/20 border border-red-800/50 p-2 rounded-lg mt-4">
+                ⚠️ API URL is currently set to a placeholder. Open settings (gear icon) to update it for live calls.
+            </div>
+          )}
         </div>
 
-        <form onSubmit={handleSubmit} className="w-full max-w-xl relative group z-10">
+        <form onSubmit={handleSubmit} className="w-full max-w-2xl relative group z-10">
           <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-lg blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
-          <div className="relative flex items-center bg-slate-900 rounded-lg border border-slate-700 shadow-2xl p-1">
+          <div className="relative flex flex-col md:flex-row items-center bg-slate-900 rounded-lg border border-slate-700 shadow-2xl p-1">
             
-            {/* Platform Selector Dropdown */}
-            <div className="relative border-r border-slate-700 pr-2">
-                <select
-                  value={platform}
-                  onChange={(e) => setPlatform(e.target.value)}
-                  className="bg-transparent text-slate-300 text-sm font-medium py-3 pl-3 pr-1 outline-none appearance-none cursor-pointer hover:text-emerald-400 transition-colors text-center w-28"
-                  style={{ textAlignLast: 'center' }}
-                >
-                  <option value="leetcode">LeetCode</option>
-                  <option value="codeforces">Codeforces</option>
-                  <option value="hackerrank">HackerRank</option>
-                  <option value="atcoder">AtCoder</option>
-                </select>
+            {/* Selector and Input Container */}
+            <div className="flex w-full md:w-auto border-b md:border-b-0 md:border-r border-slate-700">
+                
+                {/* Platform Selector */}
+                <div className="relative flex-1 md:flex-none">
+                    <select
+                      value={platform}
+                      onChange={(e) => setPlatform(e.target.value)}
+                      className="w-full md:w-32 bg-transparent text-slate-300 text-sm font-medium py-3 px-2 outline-none appearance-none cursor-pointer hover:text-emerald-400 transition-colors text-center"
+                      style={{ textAlignLast: 'center' }}
+                    >
+                      <option value="leetcode">LeetCode</option>
+                      <option value="codeforces">Codeforces</option>
+                      <option value="hackerrank">HackerRank</option>
+                      <option value="atcoder">AtCoder</option>
+                    </select>
+                </div>
             </div>
 
+            {/* Input Field */}
             <input 
               type="text" 
               placeholder={platform === 'codeforces' ? "1234/A" : "two-sum"}
@@ -267,13 +343,13 @@ public class Solution {
               className="w-full bg-transparent border-none py-3 px-4 text-lg outline-none text-slate-200 placeholder:text-slate-600"
             />
             
+            {/* Submit Button */}
             <button 
               type="submit" 
               disabled={loading || !slug}
-              className="mr-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:hover:bg-emerald-600 text-white px-5 py-2.5 rounded-md font-medium transition-all flex items-center gap-2"
+              className="w-full md:w-auto mt-2 md:mt-0 mr-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:hover:bg-emerald-600 text-white px-6 py-2.5 rounded-md font-medium transition-all flex items-center justify-center gap-2"
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
-              <span>Solve</span>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Solve</span>}
             </button>
           </div>
         </form>
@@ -291,20 +367,31 @@ public class Solution {
             </div>
           )}
 
+          {/* --- ADDED: Central Loading Indicator --- */}
+          {loading && (
+            <div className="w-full h-48 flex flex-col items-center justify-center bg-slate-900/50 border border-slate-800 rounded-xl mt-6 animate-in fade-in duration-300">
+                <Loader2 className="w-8 h-8 text-emerald-400 animate-spin mb-3" />
+                <p className="text-slate-400">Fetching solution for {slug}...</p>
+                {config.useMock && <p className="text-xs text-slate-500 mt-1">Simulating API delay...</p>}
+            </div>
+          )}
+          {/* ------------------------------------- */}
+
           {result && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
               {/* Meta Info Bar */}
-              <div className="flex items-center justify-between mb-3 px-1">
+              <div className="flex flex-wrap items-center justify-between mb-3 px-1 gap-2">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2 px-2 py-1 bg-slate-800 rounded border border-slate-700">
                     <Globe className="w-3 h-3 text-slate-400" />
                     <span className="text-xs font-mono text-slate-300 capitalize">{result.platform}</span>
                   </div>
-                  <span className="px-2 py-1 bg-slate-800 rounded text-xs font-mono text-slate-400 border border-slate-700">
-                    {result.language || 'python'}
-                  </span>
+                  <div className="flex items-center gap-2 px-2 py-1 bg-slate-800 rounded border border-slate-700">
+                    <Languages className="w-3 h-3 text-slate-400" />
+                    <span className="text-xs font-mono text-slate-300 capitalize">{result.language}</span>
+                  </div>
                   {result.complexity && (
-                    <span className="text-xs text-emerald-400 font-medium">
+                    <span className="text-xs text-emerald-400 font-medium hidden sm:inline-block">
                       {result.complexity}
                     </span>
                   )}
@@ -322,7 +409,7 @@ public class Solution {
                   </div>
                   <div className="ml-4 text-xs text-slate-500 font-mono flex items-center gap-2">
                     <Code2 className="w-3 h-3" />
-                    solution.{result.language === 'cpp' ? 'cpp' : result.language === 'java' ? 'java' : 'py'}
+                    solution.{getFileExtension(language)}
                   </div>
                 </div>
                 
@@ -336,7 +423,7 @@ public class Solution {
               {config.useMock && (
                 <div className="mt-4 text-center">
                   <span className="inline-block px-3 py-1 bg-amber-500/10 text-amber-400 text-xs rounded-full border border-amber-500/20">
-                    Preview Mode: Using simulated data for {platform}
+                    Preview Mode: Using simulated data for {language}
                   </span>
                 </div>
               )}
@@ -353,7 +440,18 @@ const CopyButton = ({ text }) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(text);
+    // Fallback for secure contexts where clipboard API might not be available
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text);
+    } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+    }
+
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
